@@ -8,7 +8,7 @@ class Base(DeclarativeBase):
     pass
 
 
-engine = create_async_engine(settings.database_url, echo=False, future=True)
+engine = create_async_engine(settings.database_url, echo=False, future=True, pool_pre_ping=True)
 AsyncSessionLocal = sessionmaker(
     bind=engine,
     class_=AsyncSession,
@@ -19,6 +19,8 @@ AsyncSessionLocal = sessionmaker(
 
 
 async def init_db() -> None:
+    from app.models import AuditLog, MiningProvider, Notification, RewardRule, RewardTransaction, TaskReward, User, UserRewardLedger, WithdrawalRequest
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
@@ -29,9 +31,3 @@ async def get_db() -> AsyncSession:
             yield session
         finally:
             await session.close()
-
-
-from app.models.user import User  # noqa: E402,F401
-from app.models.task import Task, TaskCompletion  # noqa: E402,F401
-from app.models.wallet import WalletTransaction, WithdrawalRequest  # noqa: E402,F401
-from app.models.referral import Referral  # noqa: E402,F401

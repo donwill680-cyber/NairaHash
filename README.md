@@ -8,7 +8,10 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 email-validator==2.2.0
 python-multipart==0.0.9
-jinja2==3.1.5
+httpx==0.27.2
+apscheduler==3.10.4
+alembic==1.14.0
 pytest==8.3.3
 pytest-asyncio==0.24.0
-httpx==0.27.2
+requests==2.32.3
+jinja2==3.1.5

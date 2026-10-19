@@ -1,40 +1,44 @@
-from pathlib import Path
+from __future__ import annotations
 
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
-
-from app.api.v1.api import api_router
-from app.config import settings
-from app.db import init_db
-
-app = FastAPI(
-    title="NairaHash",
-    description="Professional Bitcoin rewards platform for earning, tracking, and withdrawing BTC rewards.",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-)
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
-@app.on_event("startup")
-async def startup_event() -> None:
-    await init_db()
+class UserBase(BaseModel):
+    email: EmailStr
+    full_name: str = Field(..., min_length=2, max_length=120)
 
 
-@app.get("/", response_class=HTMLResponse)
-async def read_root() -> HTMLResponse:
-    template_path = Path("app/templates/index.html")
-    html = template_path.read_text(encoding="utf-8")
-    return HTMLResponse(content=html)
+class UserCreate(UserBase):
+    password: str = Field(..., min_length=8)
+    referral_code: str | None = None
 
 
-@app.get("/health")
-async def health_check() -> dict:
-    return {
-        "status": "ok",
-        "service": "NairaHash API",
-        "environment": settings.environment,
-    }
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
 
 
-app.include_router(api_router, prefix="/api/v1")
+class UserResponse(UserBase):
+    id: str
+    role: str = "user"
+    referral_code: str
+    btc_wallet_address: str | None = None
+    demo_balance_sats: int = 0
+    real_balance_sats: int = 0
+    total_rewards_sats: int = 0
+    is_verified: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class RewardRuleCreate(BaseModel):
+    name: str
+    rule_type: str
+    amount_sats: int = Field(..., ge=0)
+    description: str | None = None
+    interval_minutes: int | None = Field(None, ge=1)

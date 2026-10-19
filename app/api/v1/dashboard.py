@@ -2,13 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import get_current_user
+from app.config import settings
+from app.core.security import create_access_token, generate_referral_code, hash_password, verify_password
 from app.db import AsyncSessionLocal
-from app.models.user import User
-from app.models.wallet import WithdrawalRequest, WalletTransaction
-from app.schemas import WithdrawalRequestCreate, WithdrawalRequestRead, WalletTransactionRead
+from app.models import User
+from app.schemas import TokenResponse, UserCreate, UserLogin, UserResponse
 
-router = APIRouter(prefix="/wallet", tags=["wallet"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 async def get_db():
@@ -19,61 +19,43 @@ async def get_db():
             await session.close()
 
 
-@router.get("/summary")
-async def wallet_summary(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> dict:
-    txs = await db.execute(select(WalletTransaction).where(WalletTransaction.user_id == current_user.id).order_by(WalletTransaction.created_at.desc()))
-    result = {
-        "btc_balance": float(current_user.btc_balance),
-        "total_earned_btc": float(current_user.total_earned_btc),
-        "transactions": [
-            {
-                "id": tx.id,
-                "kind": tx.kind,
-                "amount_btc": float(tx.amount_btc),
-                "status": tx.status,
-                "reference": tx.reference,
-            }
-            for tx in txs.scalars().all()
-        ],
-    }
-    return result
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def register_user(payload: UserCreate, db: AsyncSession = Depends(get_db)) -> User:
+    existing = await db.execute(select(User).where(User.email == payload.email))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Email already registered")
 
-
-@router.post("/withdraw", response_model=WithdrawalRequestRead, status_code=status.HTTP_201_CREATED)
-async def request_withdrawal(
-    payload: WithdrawalRequestCreate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> WithdrawalRequest:
-    if float(current_user.btc_balance) < float(payload.amount_btc):
-        raise HTTPException(status_code=400, detail="Insufficient BTC balance")
-
-    request = WithdrawalRequest(
-        user_id=current_user.id,
-        amount_btc=payload.amount_btc,
-        wallet_address=payload.wallet_address,
-        note=payload.note,
-        status="pending",
+    code = payload.referral_code or generate_referral_code(payload.email)
+    user = User(
+        email=payload.email,
+        full_name=payload.full_name,
+        password_hash=hash_password(payload.password),
+        referral_code=code,
+        role="user",
+        btc_wallet_address="bc1qexamplewalletaddress",
     )
-    db.add(request)
-    current_user.btc_balance = float(current_user.btc_balance) - float(payload.amount_btc)
-
-    tx = WalletTransaction(
-        user_id=current_user.id,
-        kind="withdrawal",
-        amount_btc=payload.amount_btc,
-        status="pending",
-        reference=request.id,
-    )
-    db.add(tx)
+    db.add(user)
     await db.commit()
-    await db.refresh(request)
-    return request
+    await db.refresh(user)
+    return user
 
 
-@router.get("/transactions", response_model=list[WalletTransactionRead])
-async def list_transactions(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> list[WalletTransaction]:
-    result = await db.execute(
-        select(WalletTransaction).where(WalletTransaction.user_id == current_user.id).order_by(WalletTransaction.created_at.desc())
-    )
-    return list(result.scalars().all())
+@router.post("/login", response_model=TokenResponse)
+async def login_json(payload: UserLogin, db: AsyncSession = Depends(get_db)) -> dict:
+    result = await db.execute(select(User).where(User.email == payload.email))
+    user = result.scalar_one_or_none()
+    if not user or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    token = create_access_token(user.email)
+    return {"access_token": token, "token_type": "bearer"}
+
+
+@router.post("/login-form")
+async def login_form(username: str, password: str, db: AsyncSession = Depends(get_db)) -> dict:
+    result = await db.execute(select(User).where(User.email == username))
+    user = result.scalar_one_or_none()
+    if not user or not verify_password(password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    token = create_access_token(user.email)
+    return {"access_token": token, "token_type": "bearer"}

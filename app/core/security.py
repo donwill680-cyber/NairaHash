@@ -1,16 +1,45 @@
-from sqlalchemy import String, DateTime, Numeric
-from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.sql import func
-from uuid import uuid4
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
-from app.db import Base
+from app.config import settings
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+ALGORITHM = "HS256"
+OAuth2PasswordBearerScheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
-class Referral(Base):
-    __tablename__ = "referrals"
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    referrer_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    referred_user_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    bonus_btc: Mapped[float] = mapped_column(Numeric(18, 8), default=0.0)
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return pwd_context.verify(plain, hashed)
+
+
+def create_access_token(subject: str | Any) -> str:
+    expires = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
+    payload = {"sub": str(subject), "exp": expires}
+    return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
+
+
+def decode_access_token(token: str) -> str:
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
+        subject = payload.get("sub")
+        if not subject:
+            raise ValueError("Missing subject")
+        return str(subject)
+    except (JWTError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+
+
+async def get_oauth2_scheme() -> str:
+    return OAuth2PasswordBearerScheme
