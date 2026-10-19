@@ -29,3 +29,9 @@ async def get_db() -> AsyncSession:
             yield session
         finally:
             await session.close()
+
+
+from app.models.user import User  # noqa: E402,F401
+from app.models.task import Task, TaskCompletion  # noqa: E402,F401
+from app.models.wallet import WalletTransaction, WithdrawalRequest  # noqa: E402,F401
+from app.models.referral import Referral  # noqa: E402,F401

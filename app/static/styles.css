@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NairaHash | Bitcoin Rewards</title>
+    <meta name="description" content="Earn Bitcoin by completing tasks, referring friends, and tracking withdrawals in a secure rewards dashboard." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container nav">
+        <div class="brand">
+          <span class="brand-mark">₿</span>
+          <span>NairaHash</span>
+        </div>
+        <nav>
+          <a href="#features">Features</a>
+          <a href="#tasks">Tasks</a>
+          <a href="#security">Security</a>
+          <a href="#pricing">Pricing</a>
+        </nav>
+        <a class="button primary" href="#join">Join Now</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <span class="eyebrow">Earn BTC. Grow faster.</span>
+            <h1>Turn your everyday actions into Bitcoin rewards.</h1>
+            <p>
+              NairaHash helps people complete digital tasks, build referral momentum,
+              and withdraw Bitcoin with confidence. Built for a modern crypto rewards economy.
+            </p>
+            <div class="hero-actions">
+              <a class="button primary" href="#join">Start Earning</a>
+              <a class="button secondary" href="#features">Explore Platform</a>
+            </div>
+            <ul class="hero-meta">
+              <li>Trusted wallet tracking</li>
+              <li>Fast BTC payouts</li>
+              <li>Referral-powered growth</li>
+            </ul>
+          </div>
+
+          <div class="hero-panel">
+            <div class="wallet-card">
+              <div class="wallet-header">
+                <span>Portfolio</span>
+                <span class="badge">Live</span>
+              </div>
+              <h3>0.4627 BTC</h3>
+              <div class="wallet-balance-row">
+                <span>Estimated value</span>
+                <strong>$19,840</strong>
+              </div>
+              <div class="mini-bars">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <div class="wallet-stats">
+                <div>
+                  <label>Tasks</label>
+                  <strong>46</strong>
+                </div>
+                <div>
+                  <label>Referrals</label>
+                  <strong>12</strong>
+                </div>
+                <div>
+                  <label>Withdrawals</label>
+                  <strong>8</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="stats">
+        <div class="container stats-grid">
+          <div class="stat-box">
+            <strong>1.2M+</strong>
+            <span>Reward actions processed</span>
+          </div>
+          <div class="stat-box">
+            <strong>₦1.8B</strong>
+            <span>Value distributed</span>
+          </div>
+          <div class="stat-box">
+            <strong>98.7%</strong>
+            <span>On-time payout success</span>
+          </div>
+          <div class="stat-box">
+            <strong>24/7</strong>
+            <span>Platform monitoring</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" class="section">
+        <div class="container">
+          <div class="section-heading">
+            <span class="eyebrow">Why NairaHash</span>
+            <h2>Everything needed to reward users with crypto.</h2>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card">
+              <div class="icon">⚡</div>
+              <h3>Fast reward engine</h3>
+              <p>Automate daily tasks, milestone completions, and payout calculations in one clean flow.</p>
+            </article>
+            <article class="feature-card">
+              <div class="icon">🧠</div>
+              <h3>Smart dashboards</h3>
+              <p>Track BTC balances, activity, tasks, and growth performance from a single user view.</p>
+            </article>
+            <article class="feature-card">
+              <div class="icon">🔐</div>
+              <h3>Secure withdrawals</h3>
+              <p>Manage payout requests and wallet verification with built-in protection and auditability.</p>
+            </article>
+            <article class="feature-card">
+              <div class="icon">📈</div>
+              <h3>Referral growth</h3>
+              <p>Reward users for inviting friends, increasing retention, and creating network effects.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="tasks" class="section alt">
+        <div class="container">
+          <div class="section-heading">
+            <span class="eyebrow">Available tasks</span>
+            <h2>Simple actions. Valuable Bitcoin.</h2>
+          </div>
+          <div class="task-grid">
+            <div class="task-card">
+              <span class="tag">Social</span>
+              <h3>Follow brand updates</h3>
+              <p>Complete a verified social action and earn BTC instantly.</p>
+              <div class="task-footer">
+                <strong>0.0004 BTC</strong>
+                <button>Claim</button>
+              </div>
+            </div>
+            <div class="task-card">
+              <span class="tag">Survey</span>
+              <h3>Answer market questions</h3>
+              <p>Share quick insights and unlock a new reward payout.</p>
+              <div class="task-footer">
+                <strong>0.0008 BTC</strong>
+                <button>Claim</button>
+              </div>
+            </div>
+            <div class="task-card">
+              <span class="tag">Referral</span>
+              <h3>Invite a friend</h3>
+              <p>Grow your network and receive a referral-based BTC bonus.</p>
+              <div class="task-footer">
+                <strong>0.0012 BTC</strong>
+                <button>Claim</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="security" class="section">
+        <div class="container security-grid">
+          <div>
+            <span class="eyebrow">Designed for trust</span>
+            <h2>Built with modern security, compliance, and scalability in mind.</h2>
+          </div>
+          <div class="security-list">
+            <div>
+              <strong>JWT-based auth</strong>
+              <p>Protected sessions and user authorization for secure application access.</p>
+            </div>
+            <div>
+              <strong>PostgreSQL-backed data</strong>
+              <p>Reliable, structured storage for users, rewards, balances, and payouts.</p>
+            </div>
+            <div>
+              <strong>Production-ready APIs</strong>
+              <p>FastAPI routes support modern fintech operations, dashboards, and automation.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="join" class="cta">
+        <div class="container cta-box">
+          <div>
+            <span class="eyebrow">Ready to begin?</span>
+            <h2>Create a reward system that users love.</h2>
+          </div>
+          <a class="button primary" href="/docs">Open API Docs</a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
