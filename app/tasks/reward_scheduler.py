@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from apscheduler.schedulers.background import BackgroundScheduler
-
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -13,12 +12,11 @@ from app.tasks.reward_scheduler import run_reward_cycle
 
 app = FastAPI(
     title="NairaHash",
-    description="Bitcoin rewards platform for BTC earnings, reward automation, and secure wallet management.",
+    description="Bitcoin rewards and earning platform with secure ledger, admin controls, and automated reward processing.",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
-
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 scheduler = BackgroundScheduler()
@@ -39,22 +37,25 @@ async def shutdown_event() -> None:
 
 
 @app.get("/", response_class=HTMLResponse)
-async def index() -> HTMLResponse:
-    return HTMLResponse(content=open("app/templates/landing.html", "r", encoding="utf-8").read())
+async def home() -> HTMLResponse:
+    with open("app/templates/landing.html", "r", encoding="utf-8") as fh:
+        return HTMLResponse(content=fh.read())
 
 
 @app.get("/auth", response_class=HTMLResponse)
 async def auth_page() -> HTMLResponse:
-    return HTMLResponse(content=open("app/templates/auth.html", "r", encoding="utf-8").read())
+    with open("app/templates/auth.html", "r", encoding="utf-8") as fh:
+        return HTMLResponse(content=fh.read())
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page() -> HTMLResponse:
-    return HTMLResponse(content=open("app/templates/dashboard.html", "r", encoding="utf-8").read())
+    with open("app/templates/dashboard.html", "r", encoding="utf-8") as fh:
+        return HTMLResponse(content=fh.read())
 
 
 @app.get("/health")
-async def health() -> dict:
+async def health_check() -> dict:
     return {"status": "ok", "service": "NairaHash API", "environment": settings.environment}
 
 

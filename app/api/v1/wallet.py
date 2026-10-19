@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.ledger import ensure_unique_reward_credit
+from app.core.ledger import credit_demo_reward
 from app.db import AsyncSessionLocal
 from app.deps import get_current_user
-from app.models import RewardRule, TaskReward, User, UserRewardLedger
+from app.models import RewardRule, TaskReward, User, RewardLedgerEntry
 
 router = APIRouter(prefix="/rewards", tags=["rewards"])
 
@@ -52,35 +52,33 @@ async def list_tasks(db: AsyncSession = Depends(get_db)) -> list[dict]:
 @router.post("/claim-daily")
 async def claim_daily(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> dict:
     result = await db.execute(
-        select(RewardRule)
-        .where(RewardRule.rule_type == "daily_reward", RewardRule.active.is_(True))
-        .order_by(RewardRule.created_at.desc())
+        select(RewardRule).where(RewardRule.rule_type == "daily_reward", RewardRule.active.is_(True))
     )
     rule = result.scalar_one_or_none()
     if not rule:
-        raise HTTPException(status_code=404, detail="Daily reward rule not configured")
+        raise HTTPException(status_code=404, detail="Daily reward rule is not configured")
 
-    source_ref = f"daily-{current_user.id}-{__import__('datetime').date.today().isoformat()}"
-    existing = await db.execute(
-        select(UserRewardLedger).where(
-            UserRewardLedger.user_id == current_user.id,
-            UserRewardLedger.source_type == "daily_reward",
-            UserRewardLedger.source_ref == source_ref,
+    source_ref = f"daily_reward:{current_user.id}:{__import__('datetime').date.today().isoformat()}"
+    duplicate = await db.execute(
+        select(RewardLedgerEntry).where(
+            RewardLedgerEntry.user_id == current_user.id,
+            RewardLedgerEntry.source_type == "daily_reward",
+            RewardLedgerEntry.source_ref == source_ref,
         )
     )
-    if existing.scalar_one_or_none():
+    if duplicate.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Daily reward already claimed")
 
-    ok, error = await ensure_unique_reward_credit(
-        db,
-        current_user.id,
-        "daily_reward",
-        source_ref,
-        rule.amount_sats,
-        "Daily reward payout",
+    ok, error = await credit_demo_reward(
+        db=db,
+        user_id=current_user.id,
+        amount_sats=rule.amount_sats,
+        source_type="daily_reward",
+        source_ref=source_ref,
+        description="Daily reward credited",
     )
     if not ok:
-        raise HTTPException(status_code=400, detail=error or "Reward unavailable")
+        raise HTTPException(status_code=400, detail=error or "Unable to credit reward")
 
     await db.commit()
     return {"status": "credited", "amount_sats": rule.amount_sats}
@@ -92,13 +90,13 @@ async def claim_task(task_id: str, current_user: User = Depends(get_current_user
     if not task or not task.active:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    ok, error = await ensure_unique_reward_credit(
-        db,
-        current_user.id,
-        "task_reward",
-        task_id,
-        task.reward_sats,
-        f"Task reward: {task.title}",
+    ok, error = await credit_demo_reward(
+        db=db,
+        user_id=current_user.id,
+        amount_sats=task.reward_sats,
+        source_type="task_reward",
+        source_ref=task_id,
+        description=f"Task reward: {task.title}",
     )
     if not ok:
         raise HTTPException(status_code=400, detail=error or "Task already claimed")

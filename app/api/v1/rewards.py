@@ -18,7 +18,7 @@ async def get_db():
 
 
 @router.get("/me")
-async def profile(current_user: User = Depends(get_current_user)) -> dict:
+async def get_profile(current_user: User = Depends(get_current_user)) -> dict:
     return {
         "id": current_user.id,
         "email": current_user.email,
@@ -34,28 +34,28 @@ async def profile(current_user: User = Depends(get_current_user)) -> dict:
 
 
 @router.get("/summary")
-async def summary(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> dict:
-    task_count = await db.execute(select(TaskReward).where(TaskReward.active.is_(True)))
-    pending_withdrawals = await db.execute(
+async def get_summary(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> dict:
+    task_result = await db.execute(select(TaskReward).where(TaskReward.active.is_(True)))
+    rule_result = await db.execute(select(RewardRule).where(RewardRule.active.is_(True)))
+    withdrawal_result = await db.execute(
         select(WithdrawalRequest).where(
             WithdrawalRequest.user_id == current_user.id,
             WithdrawalRequest.status.in_(["pending", "processing"]),
         )
     )
-    active_rule_count = await db.execute(select(RewardRule).where(RewardRule.active.is_(True)))
 
     return {
         "demo_balance_sats": current_user.demo_balance_sats,
         "real_balance_sats": current_user.real_balance_sats,
         "total_earned_sats": current_user.total_rewards_sats,
-        "active_tasks": len(task_count.scalars().all()),
-        "active_rules": len(active_rule_count.scalars().all()),
-        "pending_withdrawals": len(pending_withdrawals.scalars().all()),
+        "active_tasks": len(task_result.scalars().all()),
+        "active_rules": len(rule_result.scalars().all()),
+        "pending_withdrawals": len(withdrawal_result.scalars().all()),
     }
 
 
 @router.get("/transactions")
-async def transactions(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> list[dict]:
+async def list_transactions(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> list[dict]:
     result = await db.execute(
         select(RewardTransaction)
         .where(RewardTransaction.user_id == current_user.id)
@@ -63,13 +63,13 @@ async def transactions(current_user: User = Depends(get_current_user), db: Async
     )
     return [
         {
-            "id": txn.id,
-            "kind": txn.kind,
-            "amount_sats": txn.amount_sats,
-            "status": txn.status,
-            "reference": txn.reference,
-            "description": txn.description,
-            "created_at": txn.created_at.isoformat(),
+            "id": tx.id,
+            "kind": tx.kind,
+            "amount_sats": tx.amount_sats,
+            "status": tx.status,
+            "reference": tx.reference,
+            "description": tx.description,
+            "created_at": tx.created_at.isoformat(),
         }
-        for txn in result.scalars().all()
+        for tx in result.scalars().all()
     ]

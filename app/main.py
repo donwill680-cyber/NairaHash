@@ -41,4 +41,4 @@ class RewardRuleCreate(BaseModel):
     rule_type: str
     amount_sats: int = Field(..., ge=0)
     description: str | None = None
-    interval_minutes: int | None = Field(None, ge=1)
+    interval_minutes: int | None = Field(default=None, ge=1)

@@ -1,165 +1,166 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from __future__ import annotations
 
-from app.db import AsyncSessionLocal
-from app.deps import get_current_admin
-from app.models import AuditLog, MiningProvider, RewardRule, RewardTransaction, TaskReward, User, WithdrawalRequest
+from uuid import uuid4
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
 
-
-async def get_db():
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
+from app.db import Base
 
 
-@router.get("/overview")
-async def overview(current_admin: User = Depends(get_current_admin), db: AsyncSession = Depends(get_db)) -> dict:
-    user_count = await db.execute(select(User))
-    task_count = await db.execute(select(TaskReward))
-    pending_withdrawals = await db.execute(select(WithdrawalRequest).where(WithdrawalRequest.status == "pending"))
-    provider_count = await db.execute(select(MiningProvider))
-    return {
-        "admin_email": current_admin.email,
-        "users": len(user_count.scalars().all()),
-        "tasks": len(task_count.scalars().all()),
-        "pending_withdrawals": len(pending_withdrawals.scalars().all()),
-        "providers": len(provider_count.scalars().all()),
-    }
+class User(Base):
+    __tablename__ = "users"
 
-
-@router.get("/users")
-async def list_users(current_admin: User = Depends(get_current_admin), db: AsyncSession = Depends(get_db)) -> list[dict]:
-    result = await db.execute(select(User).order_by(User.created_at.desc()))
-    return [
-        {
-            "id": user.id,
-            "email": user.email,
-            "full_name": user.full_name,
-            "role": user.role,
-            "demo_balance_sats": user.demo_balance_sats,
-            "real_balance_sats": user.real_balance_sats,
-            "is_active": user.is_active,
-            "created_at": user.created_at.isoformat(),
-        }
-        for user in result.scalars().all()
-    ]
-
-
-@router.post("/reward-rules")
-async def create_rule(
-    name: str,
-    rule_type: str,
-    amount_sats: int,
-    description: str | None = None,
-    interval_minutes: int | None = None,
-    current_admin: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    rule = RewardRule(
-        name=name,
-        rule_type=rule_type,
-        amount_sats=amount_sats,
-        description=description,
-        interval_minutes=interval_minutes,
-        active=True,
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(String(50), default="user", nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    demo_balance_sats: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    real_balance_sats: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_rewards_sats: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    referral_code: Mapped[str] = mapped_column(String(80), unique=True, nullable=False, index=True)
+    referred_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    btc_wallet_address: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
-    db.add(rule)
-    await db.commit()
-    await db.refresh(rule)
-    return {"id": rule.id, "status": "created"}
+
+    reward_entries: Mapped[list["RewardLedgerEntry"]] = relationship("RewardLedgerEntry", back_populates="user")
+    reward_transactions: Mapped[list["RewardTransaction"]] = relationship("RewardTransaction", back_populates="user")
+    withdrawals: Mapped[list["WithdrawalRequest"]] = relationship("WithdrawalRequest", back_populates="user")
+    notifications: Mapped[list["Notification"]] = relationship("Notification", back_populates="user")
 
 
-@router.post("/tasks")
-async def create_task(
-    title: str,
-    description: str,
-    reward_sats: int,
-    category: str = "general",
-    current_admin: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    task = TaskReward(
-        title=title,
-        description=description,
-        reward_sats=reward_sats,
-        category=category,
-        active=True,
+class RewardRule(Base):
+    __tablename__ = "reward_rules"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    rule_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    amount_sats: Mapped[int] = mapped_column(Integer, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    interval_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class MiningProvider(Base):
+    __tablename__ = "mining_providers"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    name: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
+    provider_type: Mapped[str] = mapped_column(String(50), default="legitimate", nullable=False)
+    reward_rate_sats_per_day: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    api_endpoint: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class TaskReward(Base):
+    __tablename__ = "task_rewards"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reward_sats: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    category: Mapped[str] = mapped_column(String(100), default="general")
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class RewardLedgerEntry(Base):
+    __tablename__ = "reward_ledger"
+    __table_args__ = (
+        UniqueConstraint("user_id", "source_type", "source_ref", name="uq_reward_source"),
     )
-    db.add(task)
-    await db.commit()
-    await db.refresh(task)
-    return {"id": task.id, "status": "created"}
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    source_ref: Mapped[str] = mapped_column(String(200), nullable=False)
+    delta_sats: Mapped[int] = mapped_column(Integer, nullable=False)
+    balance_after_sats: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="credited", nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user: Mapped[User] = relationship("User", back_populates="reward_entries")
 
 
-@router.post("/providers")
-async def create_provider(
-    name: str,
-    provider_type: str = "legitimate",
-    reward_rate_sats_per_day: int = 0,
-    api_endpoint: str | None = None,
-    current_admin: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    provider = MiningProvider(
-        name=name,
-        provider_type=provider_type,
-        reward_rate_sats_per_day=reward_rate_sats_per_day,
-        api_endpoint=api_endpoint,
-        enabled=True,
-    )
-    db.add(provider)
-    await db.commit()
-    await db.refresh(provider)
-    return {"id": provider.id, "status": "created"}
+class RewardTransaction(Base):
+    __tablename__ = "reward_transactions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(50), nullable=False)
+    amount_sats: Mapped[int] = mapped_column(Integer, nullable=False)
+    balance_after_sats: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)
+    reference: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    external_txid: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user: Mapped[User] = relationship("User", back_populates="reward_transactions")
 
 
-@router.post("/withdrawals/{withdrawal_id}/approve")
-async def approve_withdrawal(
-    withdrawal_id: str,
-    current_admin: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    request = await db.get(WithdrawalRequest, withdrawal_id)
-    if not request:
-        raise HTTPException(status_code=404, detail="Withdrawal not found")
+class WithdrawalRequest(Base):
+    __tablename__ = "withdrawal_requests"
 
-    if request.status != "pending":
-        raise HTTPException(status_code=400, detail="Withdrawal is not pending")
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    amount_sats: Mapped[int] = mapped_column(Integer, nullable=False)
+    btc_address: Mapped[str] = mapped_column(String(255), nullable=False)
+    provider_name: Mapped[str] = mapped_column(String(200), default="manual", nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    reviewed_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    request.status = "approved"
-    request.reviewed_by = current_admin.id
-    request.reviewed_at = __import__("datetime").datetime.utcnow()
-
-    log = AuditLog(
-        actor_id=current_admin.id,
-        actor_role=current_admin.role,
-        action="approve_withdrawal",
-        entity_type="withdrawal_request",
-        entity_id=request.id,
-        details=f"Approved withdrawal of {request.amount_sats} sats",
-    )
-    db.add(log)
-    await db.commit()
-    return {"status": "approved", "withdrawal_id": request.id}
+    user: Mapped[User] = relationship("User", back_populates="withdrawals")
 
 
-@router.get("/transactions")
-async def list_transactions(current_admin: User = Depends(get_current_admin), db: AsyncSession = Depends(get_db)) -> list[dict]:
-    result = await db.execute(select(RewardTransaction).order_by(RewardTransaction.created_at.desc()))
-    return [
-        {
-            "id": tx.id,
-            "user_id": tx.user_id,
-            "kind": tx.kind,
-            "amount_sats": tx.amount_sats,
-            "status": tx.status,
-            "description": tx.description,
-            "created_at": tx.created_at.isoformat(),
-        }
-        for tx in result.scalars().all()
-    ]
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    kind: Mapped[str] = mapped_column(String(50), default="info", nullable=False)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user: Mapped[User] = relationship("User", back_populates="notifications")
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    actor_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    actor_role: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    action: Mapped[str] = mapped_column(String(200), nullable=False)
+    entity_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    entity_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+__all__ = [
+    "User",
+    "RewardRule",
+    "MiningProvider",
+    "TaskReward",
+    "RewardLedgerEntry",
+    "RewardTransaction",
+    "WithdrawalRequest",
+    "Notification",
+    "AuditLog",
+]

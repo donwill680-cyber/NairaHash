@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.ledger import debit_demo_balance
 from app.db import AsyncSessionLocal
 from app.deps import get_current_user
 from app.models import RewardTransaction, User, WithdrawalRequest
@@ -18,7 +19,7 @@ async def get_db():
 
 
 @router.get("/summary")
-async def summary(current_user: User = Depends(get_current_user)) -> dict:
+async def get_summary(current_user: User = Depends(get_current_user)) -> dict:
     return {
         "demo_balance_sats": current_user.demo_balance_sats,
         "real_balance_sats": current_user.real_balance_sats,
@@ -58,8 +59,17 @@ async def request_withdrawal(
 ) -> dict:
     if amount_sats <= 0:
         raise HTTPException(status_code=400, detail="Withdrawal amount must be positive")
-    if current_user.demo_balance_sats < amount_sats:
-        raise HTTPException(status_code=400, detail="Insufficient demo balance")
+
+    ok, error = await debit_demo_balance(
+        db=db,
+        user_id=current_user.id,
+        amount_sats=amount_sats,
+        source_type="withdrawal_request",
+        source_ref=f"withdrawal:{current_user.id}:{amount_sats}",
+        description="Withdrawal request initiated",
+    )
+    if not ok:
+        raise HTTPException(status_code=400, detail=error or "Unable to process withdrawal")
 
     request = WithdrawalRequest(
         user_id=current_user.id,
@@ -70,18 +80,6 @@ async def request_withdrawal(
         status="pending",
     )
     db.add(request)
-    current_user.demo_balance_sats -= amount_sats
-
-    txn = RewardTransaction(
-        user_id=current_user.id,
-        kind="withdrawal",
-        amount_sats=amount_sats,
-        balance_after_sats=current_user.demo_balance_sats,
-        status="pending",
-        reference=request.id,
-        description="Withdrawal request initiated",
-    )
-    db.add(txn)
     await db.commit()
     await db.refresh(request)
     return {"id": request.id, "status": request.status, "amount_sats": request.amount_sats}
